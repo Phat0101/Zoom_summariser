@@ -16,6 +16,9 @@
 # production
 /build
 
+# transcripts
+/Speaker_Transcripts
+
 # misc
 .DS_Store
 *.pem
@@ -27,6 +30,7 @@ yarn-error.log*
 
 # local env files
 .env*.local
+.env
 
 # vercel
 .vercel

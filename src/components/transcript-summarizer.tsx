@@ -1,3 +1,5 @@
+// FILE: transcript-summarizer.tsx
+
 "use client"
 
 import { useState, useEffect } from "react"
@@ -7,7 +9,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { FaPlus, FaUpload, FaMoon, FaSun, FaFont, FaDownload, FaTrash } from "react-icons/fa"
+import { FaPlus, FaUpload, FaTrash, FaDownload } from "react-icons/fa"
+import { parseTranscript } from "@/lib/parse"
 
 interface Speaker {
   name: string
@@ -25,16 +28,25 @@ interface Summary {
   content: string
 }
 
-export default function TranscriptSummarizerComponent() {
-  const [transcript, setTranscript] = useState<string>("")
+interface TranscriptSummarizerComponentProps {
+  currentPage: "main" | "summary";
+  setCurrentPage: (page: "main" | "summary") => void;
+  darkMode: boolean;
+  fontSize: number;
+}
+
+export default function TranscriptSummarizerComponent({
+  currentPage,
+  setCurrentPage,
+  darkMode,
+  fontSize,
+}: TranscriptSummarizerComponentProps) {
+  const [transcript, setTranscript] = useState<string[]>([])
   const [speakers, setSpeakers] = useState<Speaker[]>([])
   const [timeframes, setTimeframes] = useState<Timeframe[]>([])
   const [newSpeaker, setNewSpeaker] = useState<Speaker>({ name: "", notes: "" })
   const [newTimeframe, setNewTimeframe] = useState<Timeframe>({ start: "", end: "", speaker: "" })
-  const [currentPage, setCurrentPage] = useState<"main" | "summary">("main")
   const [summaries, setSummaries] = useState<Summary[]>([])
-  const [darkMode, setDarkMode] = useState<boolean>(true)
-  const [fontSize, setFontSize] = useState<number>(16)
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode)
@@ -45,7 +57,9 @@ export default function TranscriptSummarizerComponent() {
     if (file) {
       const reader = new FileReader()
       reader.onload = (e) => {
-        setTranscript(e.target?.result as string)
+        const rawTranscript = e.target?.result as string;
+        const parsedTranscript = parseTranscript(rawTranscript);
+        setTranscript(parsedTranscript);
       }
       reader.readAsText(file)
     }
@@ -94,41 +108,8 @@ export default function TranscriptSummarizerComponent() {
     URL.revokeObjectURL(url)
   }
 
-  const toggleDarkMode = () => {
-    setDarkMode(!darkMode)
-  }
-
-  const changeFontSize = (increase: boolean) => {
-    setFontSize(prevSize => increase ? prevSize + 1 : prevSize - 1)
-  }
-
   return (
-    <div className="min-h-screen bg-white dark:bg-black text-black dark:text-white" style={{ fontSize: `${fontSize}px` }}>
-      <nav className="flex justify-between items-center p-4 bg-gray-100 dark:bg-black text-black dark:text-white border-b-[1px]">
-        <div>
-          <Button onClick={() => setCurrentPage("main")} variant={currentPage === "main" ? "default" : "outline"} className="mr-2">
-            Main
-          </Button>
-          <Button onClick={() => setCurrentPage("summary")} variant={currentPage === "summary" ? "default" : "outline"}>
-            Summary
-          </Button>
-        </div>
-        <h2 className="font-bold text-xl">
-          Zoom AI Summariser
-        </h2>
-        <div>
-          <Button onClick={toggleDarkMode} variant="ghost" className="mr-2">
-            {darkMode ? <FaSun /> : <FaMoon />}
-          </Button>
-          <Button onClick={() => changeFontSize(true)} variant="outline" className="mr-2">
-            <FaFont /> +
-          </Button>
-          <Button onClick={() => changeFontSize(false)} variant="outline">
-            <FaFont /> -
-          </Button>
-        </div>
-      </nav>
-
+    <div className="bg-white dark:bg-black text-black dark:text-white">
       {currentPage === "main" ? (
         <ResizablePanelGroup direction="horizontal" className="min-h-[calc(100vh-64px)]">
           <ResizablePanel defaultSize={50}>
@@ -150,9 +131,11 @@ export default function TranscriptSummarizerComponent() {
                   </Button>
                 </label>
               </div>
-              <ScrollArea className="flex-grow border border-neutral-200 rounded-md p-4 dark:border-neutral-800">
-                {transcript ? (
-                  <pre className="whitespace-pre-wrap">{transcript}</pre>
+              <ScrollArea className="flex-grow max-h-[830px] border border-neutral-200 rounded-md p-4 dark:border-neutral-800" style={{ fontSize: `${fontSize}px` }}>
+                {transcript.length > 0 ? (
+                  transcript.map((line, index) => (
+                    <p key={index} className="whitespace-pre-wrap">{line}</p>
+                  ))
                 ) : (
                   <p className="text-neutral-500 dark:text-gray-400">Transcript will appear here after upload.</p>
                 )}
@@ -181,8 +164,8 @@ export default function TranscriptSummarizerComponent() {
               <ScrollArea className="flex-grow border border-neutral-200 rounded-md p-4 dark:border-neutral-800">
                 {speakers.map((speaker, index) => (
                   <div key={index} className="mb-4 flex justify-between items-center border-b-[1px]">
-                    <div>
-                      <h3 className="font-medium">{speaker.name}</h3>
+                    <div className="flex-grow overflow-auto">
+                      <h3 className="text-base font-medium">{speaker.name}</h3>
                       <p className="text-sm text-neutral-500 dark:text-gray-400">{speaker.notes}</p>
                     </div>
                     <Button variant="ghost" onClick={() => deleteSpeaker(index)}>
@@ -232,8 +215,8 @@ export default function TranscriptSummarizerComponent() {
               <ScrollArea className="flex-grow border border-neutral-200 rounded-md p-4 dark:border-neutral-800">
                 {timeframes.map((timeframe, index) => (
                   <div key={index} className="mb-4 flex justify-between items-center border-b-[1px]">
-                    <div>
-                      <h3 className="font-medium">Timeframe {index + 1}</h3>
+                    <div className="flex-grow overflow-auto">
+                      <h3 className="text-base font-medium">Timeframe {index + 1}</h3>
                       <p className="text-sm text-neutral-500 dark:text-gray-400">
                         Start: {timeframe.start}, End: {timeframe.end}, Speaker: {timeframe.speaker}
                       </p>
