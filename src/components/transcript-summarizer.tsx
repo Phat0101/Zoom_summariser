@@ -5,8 +5,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { FaPlus, FaUpload, FaTrash, FaDownload, FaSpinner } from "react-icons/fa";
+import { FaPlus, FaUpload, FaTrash, FaSpinner } from "react-icons/fa";
 import { parseTranscript } from "@/lib/parse";
+import Result from "./Result"; // Import the new Result component
 
 interface Speaker {
   name: string;
@@ -223,7 +224,7 @@ export default function TranscriptSummarizerComponent({
           <ResizableHandle />
           <ResizablePanel defaultSize={25}>
             <div className="h-full p-4 flex flex-col">
-            <div className="mb-4">
+              <div className="mb-4">
                 <Button onClick={() => setShowSystemPromptTextarea(!showSystemPromptTextarea)} className="w-full">
                   {showSystemPromptTextarea ? "Hide System Prompt" : "Show System Prompt"}
                 </Button>
@@ -326,31 +327,14 @@ export default function TranscriptSummarizerComponent({
               </ScrollArea>
               <div className="mt-4 space-y-4">
                 <Button onClick={generateSummary} className="w-full" disabled={isLoading}>
-                  {isLoading ? <FaSpinner className="animate-spin"/> : "Generate Summary"}
+                  {isLoading ? <FaSpinner className="animate-spin" /> : "Generate Summary"}
                 </Button>
               </div>
             </div>
           </ResizablePanel>
         </ResizablePanelGroup>
       ) : (
-        <div className="p-4">
-          <h2 className="text-2xl font-bold mb-4">Summaries</h2>
-          {summaries.length > 0 ? (
-            <div>
-              {summaries.map((summary, index) => (
-                <div key={index} className="mb-4 p-4 border border-neutral-200 rounded-md dark:border-neutral-800">
-                  <h3 className="text-xl font-semibold mb-2">{summary.speaker}</h3>
-                  <p  style={{ fontSize: `${fontSize}px` }}>{summary.content}</p>
-                </div>
-              ))}
-              <Button onClick={downloadSummaries} className="mt-4">
-                <FaDownload className="mr-2" /> Download Summaries
-              </Button>
-            </div>
-          ) : (
-            <p className="text-neutral-500 dark:text-gray-400">Summaries will appear here after generation.</p>
-          )}
-        </div>
+        <Result summaries={summaries} fontSize={fontSize} downloadSummaries={downloadSummaries} />
       )}
     </div>
   );
