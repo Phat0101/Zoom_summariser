@@ -44,6 +44,8 @@ export default function TranscriptSummarizerComponent({
   const [newSpeaker, setNewSpeaker] = useState<Speaker>({ name: "", notes: "", color: "" });
   const [newTimeframe, setNewTimeframe] = useState<Timeframe>({ start: "", end: "", speaker: "" });
   const [summaries, setSummaries] = useState<Summary[]>([]);
+  const [systemPrompt, setSystemPrompt] = useState("");
+  const [showSystemPromptTextarea, setShowSystemPromptTextarea] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
@@ -114,7 +116,7 @@ export default function TranscriptSummarizerComponent({
         }).join("\n");
       });
       const speakerTranscript = speakerTranscriptSegments.join("\n");
-      return { speaker: speaker.name, transcript: speakerTranscript };
+      return { speaker: speaker.name, transcript: speakerTranscript, background: speaker.notes, systemPrompt: systemPrompt };
     });
 
     try {
@@ -221,6 +223,19 @@ export default function TranscriptSummarizerComponent({
           <ResizableHandle />
           <ResizablePanel defaultSize={25}>
             <div className="h-full p-4 flex flex-col">
+            <div className="mb-4">
+                <Button onClick={() => setShowSystemPromptTextarea(!showSystemPromptTextarea)} className="w-full">
+                  {showSystemPromptTextarea ? "Hide System Prompt" : "Show System Prompt"}
+                </Button>
+                {showSystemPromptTextarea && (
+                  <Textarea
+                    placeholder="Enter system prompt here..."
+                    value={systemPrompt}
+                    onChange={(e) => setSystemPrompt(e.target.value)}
+                    className="mt-2"
+                  />
+                )}
+              </div>
               <h2 className="text-lg font-semibold mb-4">Speakers</h2>
               <div className="space-y-4 mb-4">
                 <Input
@@ -311,7 +326,7 @@ export default function TranscriptSummarizerComponent({
               </ScrollArea>
               <div className="mt-4 space-y-4">
                 <Button onClick={generateSummary} className="w-full" disabled={isLoading}>
-                  {isLoading ? <FaSpinner className="animate-spin mr-2" /> : "Generate Summary"}
+                  {isLoading ? <FaSpinner className="animate-spin"/> : "Generate Summary"}
                 </Button>
               </div>
             </div>

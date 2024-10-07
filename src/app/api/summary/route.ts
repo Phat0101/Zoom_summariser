@@ -5,6 +5,8 @@ import { NextResponse } from 'next/server';
 interface SpeakerTranscript {
   speaker: string;
   transcript: string;
+  background: string;
+  systemPrompt: string;
 }
 
 export async function POST(req: Request) {
@@ -12,16 +14,21 @@ export async function POST(req: Request) {
   console.log('speakerTranscripts', speakerTranscripts);
 
   try {
-    const summaries = await Promise.all(speakerTranscripts.map(async ({ speaker, transcript }) => {
+    const summaries = await Promise.all(speakerTranscripts.map(async ({ speaker, transcript, background, systemPrompt }) => {
       const { text } = await generateText({
         model: google('gemini-1.5-flash'),
+        system: `You are an expert in summarising transcript. You will summarise zoom transcript in Australian English. Please use formal language.
+        This is the extra information about the speaker: Speaker name: ${speaker}
+        Background: ${background}
+        Extra instructions: ${systemPrompt}`,
         messages: [
           {
             role: 'user',
             content: [
               {
                 type: 'text',
-                text: `Summarize the following transcript for ${speaker}: ${transcript}`
+                text: `Summarise the following transcript for: 
+                ${transcript}`
               }
             ]
           }
