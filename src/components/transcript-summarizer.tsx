@@ -253,7 +253,7 @@ export default function TranscriptSummarizerComponent({
                   <FaPlus className="mr-2" /> Add Speaker
                 </Button>
               </div>
-              <ScrollArea className="flex-grow max-h-[700px] border border-neutral-200 rounded-md p-4 dark:border-neutral-800">
+              <ScrollArea className="flex-grow max-h-[607px] border border-neutral-200 rounded-md p-4 dark:border-neutral-800">
                 {speakers.map((speaker, index) => (
                   <div key={index} className="mb-4 flex justify-between items-center border-b-[1px]">
                     <div className="flex items-center">

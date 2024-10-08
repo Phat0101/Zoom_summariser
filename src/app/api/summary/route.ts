@@ -12,9 +12,11 @@ interface SpeakerTranscript {
 export async function POST(req: Request) {
   const { speakerTranscripts }: { speakerTranscripts: SpeakerTranscript[] } = await req.json();
   console.log('speakerTranscripts', speakerTranscripts);
+  const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
   try {
-    const summaries = await Promise.all(speakerTranscripts.map(async ({ speaker, transcript, background, systemPrompt }) => {
+    const summaries = [];
+    for (const { speaker, transcript, background, systemPrompt } of speakerTranscripts) {
       const { text } = await generateText({
         model: google('gemini-1.5-flash'),
         system: `You are an expert in summarising transcript. You will summarise zoom transcript in Australian English. Please use formal language.
@@ -34,8 +36,9 @@ export async function POST(req: Request) {
           }
         ]
       });
-      return { speaker, content: text };
-    }));
+      summaries.push({ speaker, content: text });
+      await delay(500); // Wait for 500ms before making the next request
+    }
 
     console.log('summaries', summaries);
     return NextResponse.json({ summaries }, { status: 200 });

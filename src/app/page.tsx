@@ -6,7 +6,7 @@ import TranscriptSummarizerComponent from '@/components/transcript-summarizer';
 
 export default function Home() {
   const [currentPage, setCurrentPage] = useState<"main" | "summary">("main");
-  const [darkMode, setDarkMode] = useState<boolean>(true);
+  const [darkMode, setDarkMode] = useState<boolean>(false);
   const [fontSize, setFontSize] = useState<number>(16);
 
   const toggleDarkMode = () => {
