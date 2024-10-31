@@ -1,3 +1,29 @@
+# Zoom AI Summariser
+
+A Next.js application that helps summarize Zoom transcripts using Google's Generative AI (Gemini).
+
+## Use Case
+This tool is designed to solve a common problem with Zoom transcripts where multiple speakers share the same device, resulting in the transcript attributing all speech to a single user. The application allows you to:
+
+- Segment the transcript by different speakers and time periods
+- Add speaker profiles and background information
+- Customize the AI system prompt for better summarization
+- Generate individual summaries for each speaker's contribution
+- Export the formatted summaries for further use
+
+## Prerequisites
+
+Before you begin, you'll need:
+- Node.js installed on your system
+- A Google Cloud account with access to Gemini API
+- A Gemini API key (Get one from [Google AI Studio](https://makersuite.google.com/app/apikey))
+
+## Setup
+
+1. Clone this repository
+2. Create a `.env` file in the root directory and add your Gemini API key:
+GOOGLE_GENERATIVE_AI_API_KEY=
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
