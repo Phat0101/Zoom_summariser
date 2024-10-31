@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,8 +17,8 @@ interface Speaker {
 }
 
 interface Timeframe {
-  start: string;
-  end: string;
+  start: string;  // Format: "HH:MM:SS"
+  end: string;    // Format: "HH:MM:SS"
   speaker: string;
 }
 
@@ -39,19 +40,39 @@ export default function TranscriptSummarizerComponent({
   darkMode,
   fontSize,
 }: TranscriptSummarizerComponentProps) {
+  const [mounted, setMounted] = useState(false);
   const [transcript, setTranscript] = useState<string[]>([]);
-  const [speakers, setSpeakers] = useState<Speaker[]>([]);
-  const [timeframes, setTimeframes] = useState<Timeframe[]>([]);
+  const [speakers, setSpeakers] = useLocalStorage<Speaker[]>('speakers', []);
+  const [timeframes, setTimeframes] = useLocalStorage<Timeframe[]>('timeframes', []);
+  const [systemPrompt, setSystemPrompt] = useLocalStorage<string>('systemPrompt', '');
+  const [summaries, setSummaries] = useLocalStorage<Summary[]>('summaries', []);
   const [newSpeaker, setNewSpeaker] = useState<Speaker>({ name: "", notes: "", color: "" });
   const [newTimeframe, setNewTimeframe] = useState<Timeframe>({ start: "", end: "", speaker: "" });
-  const [summaries, setSummaries] = useState<Summary[]>([]);
-  const [systemPrompt, setSystemPrompt] = useState("");
   const [showSystemPromptTextarea, setShowSystemPromptTextarea] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const lineRefs = useRef<{ [key: string]: HTMLParagraphElement }>({});
 
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
     document.documentElement.classList.toggle("dark", darkMode);
-  }, [darkMode]);
+  }, [darkMode, mounted]);
+
+  useEffect(() => {
+    if (!mounted) return;
+    const savedTranscript = localStorage.getItem('transcript');
+    if (savedTranscript) {
+      setTranscript(JSON.parse(savedTranscript));
+    }
+  }, [mounted]);
+
+  if (!mounted) {
+    return null;
+  }
 
   const getRandomColor = () => {
     const letters = "CDEF"; // Use only the higher range of hex values to ensure light colors
@@ -75,6 +96,10 @@ export default function TranscriptSummarizerComponent({
     }
   };
 
+  const saveTranscript = () => {
+    localStorage.setItem('transcript', JSON.stringify(transcript));
+  };
+
   const addSpeaker = () => {
     if (newSpeaker.name) {
       setSpeakers([...speakers, { ...newSpeaker, color: getRandomColor() }]);
@@ -86,10 +111,59 @@ export default function TranscriptSummarizerComponent({
     setSpeakers(speakers.filter((_, i) => i !== index));
   };
 
+  const validateTimeFormat = (time: string): boolean => {
+    const timeRegex = /^([0-1][0-9]|2[0-3]):([0-5][0-9]):([0-5][0-9])$/;
+    return timeRegex.test(time);
+  };
+
+  const handleTimeChange = (value: string, field: 'start' | 'end') => {
+    // Allow empty value for deletion
+    if (!value) {
+      setNewTimeframe(prev => ({ ...prev, [field]: "" }));
+      return;
+    }
+
+    // Remove any non-digit characters
+    const digits = value.replace(/\D/g, '');
+    
+    // Don't pad with zeros if user is still typing or deleting
+    if (digits.length < 6) {
+      // Format partially typed time
+      let formattedTime = digits;
+      if (digits.length > 2) {
+        formattedTime = digits.substring(0, 2) + ':' + digits.substring(2);
+      }
+      if (digits.length > 4) {
+        formattedTime = formattedTime.substring(0, 5) + ':' + formattedTime.substring(5);
+      }
+      setNewTimeframe(prev => ({ ...prev, [field]: formattedTime }));
+      return;
+    }
+    
+    // Format complete time
+    const hours = digits.substring(0, 2);
+    const minutes = digits.substring(2, 4);
+    const seconds = digits.substring(4, 6);
+    const formattedTime = `${hours}:${minutes}:${seconds}`;
+    
+    // Only update if it's a valid time
+    if (validateTimeFormat(formattedTime)) {
+      setNewTimeframe(prev => ({ ...prev, [field]: formattedTime }));
+    }
+  };
+
   const addTimeframe = () => {
-    if (newTimeframe.start && newTimeframe.end && newTimeframe.speaker) {
+    if (newTimeframe.start && 
+        newTimeframe.end && 
+        newTimeframe.speaker && 
+        validateTimeFormat(newTimeframe.start) && 
+        validateTimeFormat(newTimeframe.end) &&
+        newTimeframe.start <= newTimeframe.end) {
       setTimeframes([...timeframes, newTimeframe]);
       setNewTimeframe({ start: "", end: "", speaker: "" });
+    } else {
+      // You might want to add error handling here
+      alert("Please enter valid time format (HH:MM:SS)");
     }
   };
 
@@ -105,13 +179,12 @@ export default function TranscriptSummarizerComponent({
     const speakerTranscripts = speakers.map(speaker => {
       const speakerTimeframes = timeframes.filter(timeframe => timeframe.speaker === speaker.name);
       const speakerTranscriptSegments = speakerTimeframes.map(timeframe => {
-        const start = `${timeframe.start}:00`;
-        const end = `${timeframe.end}:59`;
         return transcript.filter(line => {
-          const timestampMatch = line.match(/\d{2}:\d{2}:\d{2}/);
+          const timestampMatch = line.match(/(\d{2}:\d{2}:\d{2})/);
           if (timestampMatch) {
             const timestamp = timestampMatch[0];
-            return timestamp >= start && timestamp <= end;
+            // Include exact start and end times
+            return timestamp >= timeframe.start && timestamp <= timeframe.end;
           }
           return false;
         }).join("\n");
@@ -169,9 +242,8 @@ export default function TranscriptSummarizerComponent({
       if (timestampMatch) {
         const timestamp = timestampMatch[0];
         const matchingTimeframe = timeframes.find((timeframe) => {
-          const start = `${timeframe.start}:00`;
-          const end = `${timeframe.end}:59`;
-          return timestamp >= start && timestamp <= end;
+          // Use exact timestamps from timeframe
+          return timestamp >= timeframe.start && timestamp <= timeframe.end;
         });
         if (matchingTimeframe) {
           const speaker = speakers.find((s) => s.name === matchingTimeframe.speaker);
@@ -185,15 +257,29 @@ export default function TranscriptSummarizerComponent({
     return updatedTranscript;
   };
 
+  const scrollToTimeframe = (start: string) => {
+    const lines = transcript;
+    for (let i = 0; i < lines.length; i++) {
+      const timestampMatch = lines[i].match(/(\d{2}:\d{2}:\d{2})/);
+      if (timestampMatch && timestampMatch[0] >= start) {
+        const ref = lineRefs.current[i];
+        if (ref && scrollContainerRef.current) {
+          ref.scrollIntoView({ behavior: 'smooth' });
+          break;
+        }
+      }
+    }
+  };
+
   const coloredTranscript = applyTimeframeColors();
 
   return (
-    <div className="bg-white dark:bg-black text-black dark:text-white">
+    <div className="bg-white dark:bg-black text-black dark:text-white h-[calc(100vh-64px)]">
       {currentPage === "main" ? (
-        <ResizablePanelGroup direction="horizontal" className="min-h-[calc(100vh-64px)]">
+        <ResizablePanelGroup direction="horizontal" className="h-full">
           <ResizablePanel defaultSize={50}>
             <div className="h-full p-4 flex flex-col">
-              <div className="mb-4">
+              <div className="flex-none mb-4">
                 <Input
                   type="file"
                   accept=".txt"
@@ -209,36 +295,55 @@ export default function TranscriptSummarizerComponent({
                     </span>
                   </Button>
                 </label>
+                <Button onClick={saveTranscript} className="w-full mt-2">
+                  Save Transcript
+                </Button>
               </div>
-              <ScrollArea className="flex-grow max-h-[830px] border border-neutral-200 rounded-md p-4 dark:border-neutral-800" style={{ fontSize: `${fontSize}px` }}>
-                {coloredTranscript.length > 0 ? (
-                  coloredTranscript.map((line, index) => (
-                    <p key={index} className="whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: line }}></p>
-                  ))
-                ) : (
-                  <p className="text-neutral-500 dark:text-gray-400">Transcript will appear here after upload.</p>
-                )}
+              <ScrollArea 
+                className="flex-1 border border-neutral-200 rounded-md p-4 dark:border-neutral-800" 
+                style={{ fontSize: `${fontSize}px` }}
+              >
+                <div ref={scrollContainerRef}>
+                  {coloredTranscript.length > 0 ? (
+                    coloredTranscript.map((line, index) => (
+                      <p
+                        key={index}
+                        ref={el => {
+                          if (el) {
+                            lineRefs.current[index] = el;
+                          }
+                        }}
+                        className="whitespace-pre-wrap"
+                        dangerouslySetInnerHTML={{ __html: line }}
+                      />
+                    ))
+                  ) : (
+                    <p className="text-neutral-500 dark:text-gray-400">
+                      Transcript will appear here after upload.
+                    </p>
+                  )}
+                </div>
               </ScrollArea>
             </div>
           </ResizablePanel>
           <ResizableHandle />
           <ResizablePanel defaultSize={25}>
             <div className="h-full p-4 flex flex-col">
-              <div className="mb-4">
+              <div className="flex-none mb-4">
                 <Button onClick={() => setShowSystemPromptTextarea(!showSystemPromptTextarea)} className="w-full">
                   {showSystemPromptTextarea ? "Hide System Prompt" : "Show System Prompt"}
                 </Button>
                 {showSystemPromptTextarea && (
                   <Textarea
-                    placeholder="Enter system prompt here..."
-                    value={systemPrompt}
-                    onChange={(e) => setSystemPrompt(e.target.value)}
-                    className="mt-2"
+                  placeholder="Enter system prompt here..."
+                  value={systemPrompt}
+                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setSystemPrompt(e.target.value)}
+                  className="mt-2"
                   />
                 )}
               </div>
-              <h2 className="text-lg font-semibold mb-4">Speakers</h2>
-              <div className="space-y-4 mb-4">
+              <h2 className="flex-none text-lg font-semibold mb-4">Speakers</h2>
+              <div className="flex-none space-y-4 mb-4">
                 <Input
                   placeholder="Speaker Name"
                   value={newSpeaker.name}
@@ -253,7 +358,7 @@ export default function TranscriptSummarizerComponent({
                   <FaPlus className="mr-2" /> Add Speaker
                 </Button>
               </div>
-              <ScrollArea className="flex-grow max-h-[607px] border border-neutral-200 rounded-md p-4 dark:border-neutral-800">
+              <ScrollArea className="flex-1 border border-neutral-200 rounded-md p-4 dark:border-neutral-800">
                 {speakers.map((speaker, index) => (
                   <div key={index} className="mb-4 flex justify-between items-center border-b-[1px]">
                     <div className="flex items-center">
@@ -277,20 +382,30 @@ export default function TranscriptSummarizerComponent({
           <ResizableHandle />
           <ResizablePanel defaultSize={25}>
             <div className="h-full p-4 flex flex-col">
-              <h2 className="text-lg font-semibold mb-4">Timeframes</h2>
-              <div className="space-y-4 mb-4">
-                <Input
-                  type="time"
-                  placeholder="Start Time"
-                  value={newTimeframe.start}
-                  onChange={(e) => setNewTimeframe({ ...newTimeframe, start: e.target.value })}
-                />
-                <Input
-                  type="time"
-                  placeholder="End Time"
-                  value={newTimeframe.end}
-                  onChange={(e) => setNewTimeframe({ ...newTimeframe, end: e.target.value })}
-                />
+              <h2 className="flex-none text-lg font-semibold mb-4">Timeframes</h2>
+              <div className="flex-none space-y-4 mb-4">
+                <div>
+                  <label className="text-sm text-neutral-500 dark:text-gray-400 mb-1 block">
+                    Start Time (HH:MM:SS)
+                  </label>
+                  <Input
+                    placeholder="00:00:00"
+                    value={newTimeframe.start}
+                    onChange={(e) => handleTimeChange(e.target.value, 'start')}
+                    maxLength={8}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-neutral-500 dark:text-gray-400 mb-1 block">
+                    End Time (HH:MM:SS)
+                  </label>
+                  <Input
+                    placeholder="00:00:00"
+                    value={newTimeframe.end}
+                    onChange={(e) => handleTimeChange(e.target.value, 'end')}
+                    maxLength={8}
+                  />
+                </div>
                 <Select
                   value={newTimeframe.speaker}
                   onValueChange={(value) => setNewTimeframe({ ...newTimeframe, speaker: value })}
@@ -310,22 +425,32 @@ export default function TranscriptSummarizerComponent({
                   <FaPlus className="mr-2" /> Add Timeframe
                 </Button>
               </div>
-              <ScrollArea className="flex-grow border max-h-[600px] border-neutral-200 rounded-md p-4 dark:border-neutral-800">
+              <ScrollArea className="flex-1 border border-neutral-200 rounded-md p-4 dark:border-neutral-800">
                 {timeframes.map((timeframe, index) => (
-                  <div key={index} className="mb-4 flex justify-between items-center border-b-[1px]">
+                  <div 
+                    key={index} 
+                    className="mb-4 flex justify-between items-center border-b-[1px] cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                    onClick={() => scrollToTimeframe(timeframe.start)}
+                  >
                     <div className="flex-grow overflow-auto">
                       <h3 className="text-base font-medium">Timeframe {index + 1}</h3>
                       <p className="text-sm text-neutral-500 dark:text-gray-400">
                         Start: {timeframe.start}, End: {timeframe.end}, Speaker: {timeframe.speaker}
                       </p>
                     </div>
-                    <Button variant="ghost" onClick={() => deleteTimeframe(index)}>
+                    <Button 
+                      variant="ghost" 
+                      onClick={(e) => {
+                        e.stopPropagation(); // Prevent triggering scroll when deleting
+                        deleteTimeframe(index);
+                      }}
+                    >
                       <FaTrash />
                     </Button>
                   </div>
                 ))}
               </ScrollArea>
-              <div className="mt-4 space-y-4">
+              <div className="flex-none mt-4 space-y-4">
                 <Button onClick={generateSummary} className="w-full" disabled={isLoading}>
                   {isLoading ? <FaSpinner className="animate-spin" /> : "Generate Summary"}
                 </Button>
